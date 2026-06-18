@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import LandingHeader from '../components/LandingHeader';
 import LandingFooter from '../components/LandingFooter';
 
@@ -6,24 +9,30 @@ const highlights = [
   {
     title: 'Beautifully guided creation',
     description: 'Create tests with a clean, step-by-step flow built for speed and clarity.',
+    icon: '✨',
   },
   {
     title: 'Role-based entry',
     description: 'Send admins and students to the right experience without any confusion.',
+    icon: '🎯',
   },
   {
     title: 'Modern publishing workflow',
     description: 'Preview, polish, and publish with a simple interface and smart feedback.',
+    icon: '🚀',
   },
 ];
 
 const metrics = [
-  { value: '5', label: 'Core screens in one flow' },
-  { value: '60%', label: 'Less friction in test setup' },
-  { value: '100%', label: 'Responsive across devices' },
+  { value: '5', label: 'Core screens in one flow', icon: '📋' },
+  { value: '60%', label: 'Less friction in test setup', icon: '⚡' },
+  { value: '100%', label: 'Responsive across devices', icon: '📱' },
 ];
 
 export default function Home() {
+  const [hoveredMetric, setHoveredMetric] = useState<number | null>(null);
+  const [hoveredHighlight, setHoveredHighlight] = useState<number | null>(null);
+
   return (
     <div className="overflow-hidden">
       <LandingHeader />
@@ -50,19 +59,25 @@ export default function Home() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row animate-[fadeUp_1.05s_ease-out]">
-              <Link href="/admin/login" className="btn-primary inline-flex h-12 items-center justify-center rounded-full px-6 text-base shadow-[0_20px_40px_rgba(91,123,255,0.25)] transition hover:-translate-y-0.5">
-                Admin Portal
+              <Link href="/admin/login" className="group btn-primary inline-flex h-12 items-center justify-center rounded-full px-6 text-base shadow-[0_20px_40px_rgba(91,123,255,0.25)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_28px_50px_rgba(91,123,255,0.35)]">
+                <span className="transition-all duration-300 group-hover:scale-105">Admin Portal</span>
               </Link>
-              <Link href="/student/login" className="inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-base font-medium text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300">
+              <Link href="/student/login" className="group inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-base font-medium text-slate-700 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#18b981] hover:bg-white/90 hover:text-[#18b981] hover:shadow-[0_15px_35px_rgba(24,185,129,0.12)]">
                 Student Portal
               </Link>
             </div>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-3 animate-[fadeUp_1.1s_ease-out]">
-              {metrics.map((metric) => (
-                <div key={metric.label} className="rounded-3xl border border-white/70 bg-white/75 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur">
-                  <div className="text-3xl font-semibold tracking-tight text-slate-900">{metric.value}</div>
-                  <div className="mt-1 text-sm leading-6 text-slate-500">{metric.label}</div>
+              {metrics.map((metric, idx) => (
+                <div 
+                  key={metric.label} 
+                  onMouseEnter={() => setHoveredMetric(idx)}
+                  onMouseLeave={() => setHoveredMetric(null)}
+                  className="group rounded-3xl border border-white/70 bg-white/75 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-300 cursor-pointer hover:-translate-y-1 hover:shadow-[0_25px_60px_rgba(91,123,255,0.15)]"
+                >
+                  <div className="text-2xl mb-2 transform transition-transform duration-300 group-hover:scale-125">{metric.icon}</div>
+                  <div className="text-3xl font-semibold tracking-tight text-slate-900 transition-colors duration-300 group-hover:text-[#5b7bff]">{metric.value}</div>
+                  <div className="mt-1 text-sm leading-6 text-slate-500 transition-colors duration-300 group-hover:text-slate-700">{metric.label}</div>
                 </div>
               ))}
             </div>
@@ -120,14 +135,19 @@ export default function Home() {
         {highlights.map((item, index) => (
           <article
             key={item.title}
-            className="group rounded-[28px] border border-white/70 bg-white/75 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_60px_rgba(15,23,42,0.12)] animate-[fadeUp_1.1s_ease-out]"
+            onMouseEnter={() => setHoveredHighlight(index)}
+            onMouseLeave={() => setHoveredHighlight(null)}
+            className="group rounded-[28px] border border-white/70 bg-white/75 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_30px_60px_rgba(91,123,255,0.18)] cursor-pointer animate-[fadeUp_1.1s_ease-out]"
             style={{ animationDelay: `${index * 120}ms` }}
           >
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef4ff] text-xl font-semibold text-[#4b67f0] transition group-hover:bg-[#5b7bff] group-hover:text-white">
-              0{index + 1}
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef4ff] text-2xl transition-all duration-300 group-hover:bg-[#5b7bff] group-hover:text-white group-hover:scale-110 transform">
+              {item.icon}
             </div>
-            <h2 className="text-xl font-semibold text-slate-900">{item.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-500">{item.description}</p>
+            <h2 className="text-xl font-semibold text-slate-900 transition-colors duration-300 group-hover:text-[#5b7bff]">{item.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-500 transition-colors duration-300 group-hover:text-slate-700">{item.description}</p>
+            <div className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#5b7bff] opacity-0 transition-all duration-300 group-hover:opacity-100">
+              Learn more <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+            </div>
           </article>
         ))}
       </section>
@@ -141,13 +161,16 @@ export default function Home() {
               Route the right people into the right portal, create tests, draft questions, preview the result, and publish with confidence.
             </p>
 
-            <div className="mt-8 space-y-4">
+            <div className="mt-8 space-y-3">
               {['Login by role', 'Create test structure', 'Add MCQs & options', 'Preview and publish'].map((step, index) => (
-                <div key={step} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eef4ff] font-semibold text-[#4b67f0]">
+                <div key={step} className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm transition-all duration-300 hover:shadow-[0_10px_30px_rgba(91,123,255,0.12)] hover:border-[#5b7bff]/30 cursor-pointer">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#eef4ff] font-semibold text-[#4b67f0] transition-all duration-300 group-hover:bg-[#5b7bff] group-hover:text-white group-hover:scale-110">
                     0{index + 1}
                   </div>
-                  <div className="font-medium text-slate-700">{step}</div>
+                  <div className="font-medium text-slate-700 transition-colors duration-300 group-hover:text-[#5b7bff]">{step}</div>
+                  <div className="ml-auto opacity-0 transition-all duration-300 group-hover:opacity-100 text-[#5b7bff] transform translate-x-2 group-hover:translate-x-0">
+                    →
+                  </div>
                 </div>
               ))}
             </div>
@@ -160,33 +183,36 @@ export default function Home() {
                 subtitle: 'Test creation hub',
                 href: '/admin/login',
                 accent: 'from-[#5b7bff] to-[#3557e5]',
+                icon: '👨‍💼',
               },
               {
                 title: 'Students',
                 subtitle: 'Assessment entry point',
                 href: '/student/login',
                 accent: 'from-[#18b981] to-[#0ea5a5]',
+                icon: '👨‍🎓',
               },
             ].map((card) => (
               <Link
                 key={card.title}
                 href={card.href}
-                className="group relative overflow-hidden rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur transition duration-300 hover:-translate-y-1"
+                className="group relative overflow-hidden rounded-[30px] border border-white/70 bg-white/80 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_30px_70px_rgba(91,123,255,0.15)]"
               >
-                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.accent}`} />
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white transition group-hover:scale-105">
-                  {card.title.charAt(0)}
+                <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${card.accent} transition-all duration-300 group-hover:h-2`} />
+                <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-5" style={{background: card.accent.split(' ')[1]}} />
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-2xl transition-all duration-300 group-hover:scale-110 shadow-lg">
+                  {card.icon}
                 </div>
-                <div className="mt-6 text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">{card.subtitle}</div>
-                <div className="mt-3 text-2xl font-semibold text-slate-900">{card.title}</div>
-                <p className="mt-3 text-sm leading-7 text-slate-500">
+                <div className="relative mt-6 text-sm font-semibold uppercase tracking-[0.24em] text-slate-400 transition-colors duration-300 group-hover:text-slate-500">{card.subtitle}</div>
+                <div className="relative mt-3 text-2xl font-semibold text-slate-900 transition-colors duration-300 group-hover:text-[#5b7bff]">{card.title}</div>
+                <p className="relative mt-3 text-sm leading-7 text-slate-500 transition-colors duration-300 group-hover:text-slate-700">
                   {card.title === 'Admins'
                     ? 'Create and publish assessments with questions, topics, and marking schemes in a polished workspace.'
                     : 'Enter assessments through a clean, distraction-free layout designed for focus.'}
                 </p>
-                <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#5b7bff]">
+                <div className="relative mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#5b7bff] transition-all duration-300 group-hover:gap-3">
                   Open portal
-                  <span className="transition group-hover:translate-x-1">→</span>
+                  <span className="transition-all duration-300 group-hover:translate-x-1.5 inline-block">→</span>
                 </div>
               </Link>
             ))}
