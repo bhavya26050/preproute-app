@@ -1,7 +1,9 @@
 import type { Test, CreateTestPayload, Question, Subject, Topic, SubTopic } from '../types';
 
-// API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+// API Configuration - Using the staging backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://admin-moderator-backend-staging.up.railway.app/api';
+
+console.log('[v0] API_BASE_URL:', API_BASE_URL);
 
 // Token management
 const getAuthToken = () => {
@@ -27,14 +29,14 @@ const clearAuthToken = () => {
 const apiRequest = async (
   method: string,
   endpoint: string,
-  data?: any,
-  isFormData: boolean = false
+  data?: any
 ) => {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = getAuthToken();
   
   const headers: any = {
     'Accept': 'application/json',
+    'Content-Type': 'application/json',
   };
 
   if (token) {
@@ -43,49 +45,39 @@ const apiRequest = async (
 
   let body = undefined;
   if (data) {
-    if (isFormData) {
-      body = data; // FormData object
-    } else {
-      body = JSON.stringify(data);
-      headers['Content-Type'] = 'application/json';
-    }
+    body = JSON.stringify(data);
   }
 
   const fetchOptions: any = {
     method,
-    headers: isFormData ? { 'Authorization': token ? `Bearer ${token}` : '' } : headers,
+    headers,
   };
 
   if (body) {
     fetchOptions.body = body;
   }
 
+  console.log('[v0] API Request:', { method, endpoint, url, headers });
+
   const response = await fetch(url, fetchOptions);
+  const responseData = await response.json();
+
+  console.log('[v0] API Response:', { status: response.status, data: responseData });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || `API Error: ${response.status}`);
+    const error = responseData?.message || response.statusText;
+    throw new Error(error || `API Error: ${response.status}`);
   }
 
-  return response.json();
+  return responseData;
 };
 
 export const api = {
+  // Authentication
   async login({ userId, password }: { userId: string; password: string }) {
-    const response = await apiRequest('POST', '/auth/admin-login', { 
-      email: userId, 
+    const response = await apiRequest('POST', '/auth/login', { 
+      userId, 
       password 
-    });
-    if (response.data?.token) {
-      setAuthToken(response.data.token);
-    }
-    return response;
-  },
-
-  async loginStudent({ email, testCode }: { email: string; testCode: string }) {
-    const response = await apiRequest('POST', '/auth/student-login', { 
-      email, 
-      test_code: testCode 
     });
     if (response.data?.token) {
       setAuthToken(response.data.token);
@@ -98,21 +90,30 @@ export const api = {
     return { success: true };
   },
 
+  // Subjects
   async getSubjects(): Promise<Subject[]> {
     const response = await apiRequest('GET', '/subjects');
     return response.data || [];
   },
 
+  // Topics
   async getTopicsBySubject(subjectId: string): Promise<Topic[]> {
-    const response = await apiRequest('GET', `/subjects/${subjectId}/topics`);
+    const response = await apiRequest('GET', `/topics/subject/${subjectId}`);
     return response.data || [];
   },
 
+  // Sub-topics
   async getSubTopicsByTopic(topicId: string): Promise<SubTopic[]> {
-    const response = await apiRequest('GET', `/topics/${topicId}/subtopics`);
+    const response = await apiRequest('GET', `/sub-topics/topic/${topicId}`);
     return response.data || [];
   },
 
+  async getSubTopicsByMultipleTopics(topicIds: string[]): Promise<SubTopic[]> {
+    const response = await apiRequest('POST', '/sub-topics/multi-topics', { topicIds });
+    return response.data || [];
+  },
+
+  // Tests
   async getTests(): Promise<Test[]> {
     const response = await apiRequest('GET', '/tests');
     return response.data || [];
@@ -136,55 +137,65 @@ export const api = {
     try {
       const response = await apiRequest('GET', `/tests/${id}`);
       return response.data || null;
-    } catch {
+    } catch (err) {
+      console.error('[v0] Error fetching test:', err);
       return null;
     }
   },
 
   async publishTest(id: string): Promise<Test> {
-    const response = await apiRequest('POST', `/tests/${id}/publish`, {});
+    const response = await apiRequest('PUT', `/tests/${id}`, { status: 'live' });
     return response.data;
   },
 
-  async previewTest(id: string): Promise<Test> {
-    const response = await apiRequest('GET', `/tests/${id}/preview`);
-    return response.data;
-  },
-
+  // Questions
   async bulkCreateQuestions(questions: Question[]) {
     if (!questions.length) return { success: true, data: [] };
     
-    const testId = questions[0].test_id;
-    const response = await apiRequest('POST', `/tests/${testId}/questions/bulk`, { questions });
+    const response = await apiRequest('POST', '/questions/bulk', { questions });
     return { success: true, data: response.data || [] };
   },
 
   async getQuestionsByTest(testId: string): Promise<Question[]> {
-    const response = await apiRequest('GET', `/tests/${testId}/questions`);
-    return response.data || [];
+    const response = await apiRequest('GET', `/tests/${testId}`);
+    const test = response.data;
+    // Questions might be embedded in test response
+    if (test?.questions && Array.isArray(test.questions)) {
+      return test.questions;
+    }
+    return [];
   },
 
   async addQuestion(testId: string, question: Question): Promise<Question> {
-    const response = await apiRequest('POST', `/tests/${testId}/questions`, question);
-    return response.data;
+    // Create single question by wrapping it in bulk endpoint
+    const response = await apiRequest('POST', '/questions/bulk', { 
+      questions: [{ ...question, test_id: testId }] 
+    });
+    return response.data?.[0] || question;
   },
 
   async updateQuestion(testId: string, questionId: string, data: Partial<Question>): Promise<Question> {
-    const response = await apiRequest('PUT', `/tests/${testId}/questions/${questionId}`, data);
+    const response = await apiRequest('PUT', `/questions/${questionId}`, data);
     return response.data;
   },
 
   async deleteQuestion(testId: string, questionId: string) {
-    return apiRequest('DELETE', `/tests/${testId}/questions/${questionId}`);
+    return apiRequest('DELETE', `/questions/${questionId}`);
   },
 
+  async fetchBulkQuestions(questionIds: string[]): Promise<Question[]> {
+    const response = await apiRequest('POST', '/questions/fetchBulk', { question_ids: questionIds });
+    return response.data || [];
+  },
+
+  // File uploads
   async uploadQuestionImage(testId: string, questionId: string, file: File) {
     const formData = new FormData();
     formData.append('image', file);
     const token = getAuthToken();
     
     const response = await fetch(
-      `${API_BASE_URL}/tests/${testId}/questions/${questionId}/image`,
+      `${API_BASE_URL}/questions/${questionId}/image`,
       {
         method: 'POST',
         headers: {
@@ -204,10 +215,11 @@ export const api = {
   async importQuestionsCSV(testId: string, file: File) {
     const formData = new FormData();
     formData.append('csv_file', file);
+    formData.append('test_id', testId);
     const token = getAuthToken();
     
     const response = await fetch(
-      `${API_BASE_URL}/tests/${testId}/questions/import-csv`,
+      `${API_BASE_URL}/questions/import-csv`,
       {
         method: 'POST',
         headers: {
@@ -223,29 +235,5 @@ export const api = {
     }
 
     return response.json();
-  },
-
-  async getStudentTests(testCode?: string) {
-    const endpoint = testCode ? `/student/tests?code=${testCode}` : '/student/tests';
-    const response = await apiRequest('GET', endpoint);
-    return response.data || [];
-  },
-
-  async submitStudentAnswer(testId: string, questionId: string, answerId: string) {
-    const response = await apiRequest('POST', `/student/tests/${testId}/answer`, {
-      question_id: questionId,
-      selected_answer_id: answerId,
-    });
-    return response.data;
-  },
-
-  async submitTest(testId: string) {
-    const response = await apiRequest('POST', `/student/tests/${testId}/submit`, {});
-    return response.data;
-  },
-
-  async getTestResult(testId: string) {
-    const response = await apiRequest('GET', `/student/tests/${testId}/result`);
-    return response.data;
   },
 };
