@@ -8,16 +8,30 @@ export default function AuthLogin({ role }: { role: 'admin' | 'student' }) {
   const router = useRouter();
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
+  const [testCode, setTestCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+    
     try {
-      const res = await api.login({ userId, password });
-      localStorage.setItem('token', res.data.token);
+      let res;
+      if (role === 'admin') {
+        res = await api.login({ userId, password });
+      } else {
+        res = await api.loginStudent({ email: userId, testCode });
+      }
+      
       localStorage.setItem('role', role);
-      router.push('/dashboard');
+      router.push(role === 'admin' ? '/dashboard' : '/student/dashboard');
     } catch (err: any) {
-      alert(err?.message || 'Login failed');
+      setError(err?.message || 'Login failed');
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -100,25 +114,49 @@ export default function AuthLogin({ role }: { role: 'admin' | 'student' }) {
             </div>
 
             <form onSubmit={submit} className="space-y-5">
+              {error && (
+                <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 border border-red-200">
+                  {error}
+                </div>
+              )}
+              
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">User ID</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  {role === 'admin' ? 'Email' : 'Email'}
+                </label>
                 <input
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  placeholder="Enter User ID"
+                  placeholder={role === 'admin' ? 'Enter your email' : 'Enter your email'}
                   className="input-base h-12 rounded-xl px-4 text-base placeholder:text-slate-300"
+                  disabled={loading}
                 />
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter Password"
-                  className="input-base h-12 rounded-xl px-4 text-base placeholder:text-slate-300"
-                />
-              </div>
+              
+              {role === 'admin' ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter Password"
+                    className="input-base h-12 rounded-xl px-4 text-base placeholder:text-slate-300"
+                    disabled={loading}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Test Code</label>
+                  <input
+                    value={testCode}
+                    onChange={(e) => setTestCode(e.target.value)}
+                    placeholder="Enter Test Code"
+                    className="input-base h-12 rounded-xl px-4 text-base placeholder:text-slate-300"
+                    disabled={loading}
+                  />
+                </div>
+              )}
 
               <div className="flex items-center justify-between text-sm">
                 <a className="font-medium text-[#5b7bff] transition hover:text-[#4b67f0]" href="#">
@@ -129,8 +167,11 @@ export default function AuthLogin({ role }: { role: 'admin' | 'student' }) {
                 </span>
               </div>
 
-              <button className="btn-primary mt-2 h-12 w-full rounded-xl text-base shadow-[0_18px_40px_rgba(91,123,255,0.28)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_rgba(91,123,255,0.34)]">
-                Log in
+              <button 
+                disabled={loading}
+                className="btn-primary mt-2 h-12 w-full rounded-xl text-base shadow-[0_18px_40px_rgba(91,123,255,0.28)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_50px_rgba(91,123,255,0.34)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Logging in...' : 'Log in'}
               </button>
 
               <div className="flex items-center justify-between pt-2 text-sm text-slate-500">
@@ -138,8 +179,13 @@ export default function AuthLogin({ role }: { role: 'admin' | 'student' }) {
                   type="button"
                   className="font-medium text-[#5b7bff] hover:text-[#4b67f0]"
                   onClick={() => {
-                    setUserId(role === 'admin' ? 'vedant-admin' : 'student-demo');
-                    setPassword(role === 'admin' ? 'vedant123' : 'student123');
+                    if (role === 'admin') {
+                      setUserId('vedant-admin');
+                      setPassword('vedant123');
+                    } else {
+                      setUserId('student@example.com');
+                      setTestCode('DEMO123');
+                    }
                   }}
                 >
                   Use demo credentials
