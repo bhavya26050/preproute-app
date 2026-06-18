@@ -1,142 +1,251 @@
 import type { Test, CreateTestPayload, Question, Subject, Topic, SubTopic } from '../types';
 
-function uuidv4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0,
-      v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+// API Configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
-const LS_PREFIX = 'preproute:';
-
-function lsKey(k: string) {
-  return `${LS_PREFIX}${k}`;
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function ensureSeed() {
-  if (!localStorage.getItem(lsKey('subjects'))) {
-    const subjects: Subject[] = [
-      { id: uuidv4(), name: 'Mathematics' },
-      { id: uuidv4(), name: 'Physics' },
-    ];
-    localStorage.setItem(lsKey('subjects'), JSON.stringify(subjects));
-
-    const topics: Topic[] = [
-      { id: uuidv4(), name: 'Algebra', subject_id: subjects[0].id },
-      { id: uuidv4(), name: 'Geometry', subject_id: subjects[0].id },
-    ];
-    localStorage.setItem(lsKey('topics'), JSON.stringify(topics));
-
-    const subTopics: SubTopic[] = [
-      { id: uuidv4(), name: 'Linear Equations', topic_id: topics[0].id },
-    ];
-    localStorage.setItem(lsKey('subTopics'), JSON.stringify(subTopics));
-
-    localStorage.setItem(lsKey('tests'), JSON.stringify([]));
-    localStorage.setItem(lsKey('questions'), JSON.stringify([]));
+// Token management
+const getAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('auth_token');
   }
-}
+  return null;
+};
+
+const setAuthToken = (token: string) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('auth_token', token);
+  }
+};
+
+const clearAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('auth_token');
+  }
+};
+
+// Helper function for API requests
+const apiRequest = async (
+  method: string,
+  endpoint: string,
+  data?: any,
+  isFormData: boolean = false
+) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const token = getAuthToken();
+  
+  const headers: any = {
+    'Accept': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let body = undefined;
+  if (data) {
+    if (isFormData) {
+      body = data; // FormData object
+    } else {
+      body = JSON.stringify(data);
+      headers['Content-Type'] = 'application/json';
+    }
+  }
+
+  const fetchOptions: any = {
+    method,
+    headers: isFormData ? { 'Authorization': token ? `Bearer ${token}` : '' } : headers,
+  };
+
+  if (body) {
+    fetchOptions.body = body;
+  }
+
+  const response = await fetch(url, fetchOptions);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: response.statusText }));
+    throw new Error(error.message || `API Error: ${response.status}`);
+  }
+
+  return response.json();
+};
 
 export const api = {
   async login({ userId, password }: { userId: string; password: string }) {
-    // mock login: accept vedant-admin / vedant123 or any non-empty
-    if (!userId || !password) throw new Error('Invalid credentials');
-    const ok = userId === 'vedant-admin' && password === 'vedant123';
-    const token = ok ? `mock-token-${uuidv4()}` : `guest-token-${uuidv4()}`;
-    // return user object
-    return { success: true, data: { token, user: { id: uuidv4(), userId } } };
+    const response = await apiRequest('POST', '/auth/admin-login', { 
+      email: userId, 
+      password 
+    });
+    if (response.data?.token) {
+      setAuthToken(response.data.token);
+    }
+    return response;
   },
 
-  async getSubjects(): Promise<Subject[]> {
-    ensureSeed();
-    return JSON.parse(localStorage.getItem(lsKey('subjects')) || '[]');
+  async loginStudent({ email, testCode }: { email: string; testCode: string }) {
+    const response = await apiRequest('POST', '/auth/student-login', { 
+      email, 
+      test_code: testCode 
+    });
+    if (response.data?.token) {
+      setAuthToken(response.data.token);
+    }
+    return response;
   },
 
-  async getTopicsBySubject(subjectId: string): Promise<Topic[]> {
-    ensureSeed();
-    const topics: Topic[] = JSON.parse(localStorage.getItem(lsKey('topics')) || '[]');
-    return topics.filter((t) => t.subject_id === subjectId);
-  },
-
-  async getSubTopicsByTopic(topicId: string): Promise<SubTopic[]> {
-    ensureSeed();
-    const subs: SubTopic[] = JSON.parse(localStorage.getItem(lsKey('subTopics')) || '[]');
-    return subs.filter((s) => s.topic_id === topicId);
-  },
-
-  async getTests(): Promise<Test[]> {
-    ensureSeed();
-    return JSON.parse(localStorage.getItem(lsKey('tests')) || '[]');
-  },
-
-  async createTest(payload: CreateTestPayload): Promise<Test> {
-    ensureSeed();
-    const tests: Test[] = JSON.parse(localStorage.getItem(lsKey('tests')) || '[]');
-    const t: Test = {
-      id: uuidv4(),
-      ...payload,
-      status: payload.status ?? 'draft',
-      created_at: nowIso(),
-      questions: [],
-    };
-    tests.push(t);
-    localStorage.setItem(lsKey('tests'), JSON.stringify(tests));
-    return t;
-  },
-
-  async updateTest(id: string, patch: Partial<Test>): Promise<Test> {
-    ensureSeed();
-    const tests: Test[] = JSON.parse(localStorage.getItem(lsKey('tests')) || '[]');
-    const idx = tests.findIndex((x) => x.id === id);
-    if (idx === -1) throw new Error('Test not found');
-    tests[idx] = { ...tests[idx], ...patch };
-    localStorage.setItem(lsKey('tests'), JSON.stringify(tests));
-    return tests[idx];
-  },
-
-  async deleteTest(id: string) {
-    ensureSeed();
-    let tests: Test[] = JSON.parse(localStorage.getItem(lsKey('tests')) || '[]');
-    tests = tests.filter((t) => t.id !== id);
-    localStorage.setItem(lsKey('tests'), JSON.stringify(tests));
+  async logout() {
+    clearAuthToken();
     return { success: true };
   },
 
+  async getSubjects(): Promise<Subject[]> {
+    const response = await apiRequest('GET', '/subjects');
+    return response.data || [];
+  },
+
+  async getTopicsBySubject(subjectId: string): Promise<Topic[]> {
+    const response = await apiRequest('GET', `/subjects/${subjectId}/topics`);
+    return response.data || [];
+  },
+
+  async getSubTopicsByTopic(topicId: string): Promise<SubTopic[]> {
+    const response = await apiRequest('GET', `/topics/${topicId}/subtopics`);
+    return response.data || [];
+  },
+
+  async getTests(): Promise<Test[]> {
+    const response = await apiRequest('GET', '/tests');
+    return response.data || [];
+  },
+
+  async createTest(payload: CreateTestPayload): Promise<Test> {
+    const response = await apiRequest('POST', '/tests', payload);
+    return response.data;
+  },
+
+  async updateTest(id: string, patch: Partial<Test>): Promise<Test> {
+    const response = await apiRequest('PUT', `/tests/${id}`, patch);
+    return response.data;
+  },
+
+  async deleteTest(id: string) {
+    return apiRequest('DELETE', `/tests/${id}`);
+  },
+
   async getTestById(id: string): Promise<Test | null> {
-    ensureSeed();
-    const tests: Test[] = JSON.parse(localStorage.getItem(lsKey('tests')) || '[]');
-    return tests.find((t) => t.id === id) ?? null;
+    try {
+      const response = await apiRequest('GET', `/tests/${id}`);
+      return response.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async publishTest(id: string): Promise<Test> {
+    const response = await apiRequest('POST', `/tests/${id}/publish`, {});
+    return response.data;
+  },
+
+  async previewTest(id: string): Promise<Test> {
+    const response = await apiRequest('GET', `/tests/${id}/preview`);
+    return response.data;
   },
 
   async bulkCreateQuestions(questions: Question[]) {
-    ensureSeed();
-    const stored: Question[] = JSON.parse(localStorage.getItem(lsKey('questions')) || '[]');
-    const tests: Test[] = JSON.parse(localStorage.getItem(lsKey('tests')) || '[]');
-    const created: Question[] = questions.map((q) => ({ ...q, id: uuidv4() }));
-    const newAll = stored.concat(created);
-    localStorage.setItem(lsKey('questions'), JSON.stringify(newAll));
-
-    // attach question ids to tests
-    created.forEach((q) => {
-      if (!q.test_id) return;
-      const ti = tests.findIndex((t) => t.id === q.test_id);
-      if (ti !== -1) {
-        tests[ti].questions = tests[ti].questions || [];
-        tests[ti].questions!.push(q.id);
-      }
-    });
-    localStorage.setItem(lsKey('tests'), JSON.stringify(tests));
-    return { success: true, data: created };
+    if (!questions.length) return { success: true, data: [] };
+    
+    const testId = questions[0].test_id;
+    const response = await apiRequest('POST', `/tests/${testId}/questions/bulk`, { questions });
+    return { success: true, data: response.data || [] };
   },
 
   async getQuestionsByTest(testId: string): Promise<Question[]> {
-    ensureSeed();
-    const all: Question[] = JSON.parse(localStorage.getItem(lsKey('questions')) || '[]');
-    return all.filter((q) => q.test_id === testId);
+    const response = await apiRequest('GET', `/tests/${testId}/questions`);
+    return response.data || [];
+  },
+
+  async addQuestion(testId: string, question: Question): Promise<Question> {
+    const response = await apiRequest('POST', `/tests/${testId}/questions`, question);
+    return response.data;
+  },
+
+  async updateQuestion(testId: string, questionId: string, data: Partial<Question>): Promise<Question> {
+    const response = await apiRequest('PUT', `/tests/${testId}/questions/${questionId}`, data);
+    return response.data;
+  },
+
+  async deleteQuestion(testId: string, questionId: string) {
+    return apiRequest('DELETE', `/tests/${testId}/questions/${questionId}`);
+  },
+
+  async uploadQuestionImage(testId: string, questionId: string, file: File) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const token = getAuthToken();
+    
+    const response = await fetch(
+      `${API_BASE_URL}/tests/${testId}/questions/${questionId}/image`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to upload image');
+    }
+
+    return response.json();
+  },
+
+  async importQuestionsCSV(testId: string, file: File) {
+    const formData = new FormData();
+    formData.append('csv_file', file);
+    const token = getAuthToken();
+    
+    const response = await fetch(
+      `${API_BASE_URL}/tests/${testId}/questions/import-csv`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }));
+      throw new Error(error.message || 'Failed to import CSV');
+    }
+
+    return response.json();
+  },
+
+  async getStudentTests(testCode?: string) {
+    const endpoint = testCode ? `/student/tests?code=${testCode}` : '/student/tests';
+    const response = await apiRequest('GET', endpoint);
+    return response.data || [];
+  },
+
+  async submitStudentAnswer(testId: string, questionId: string, answerId: string) {
+    const response = await apiRequest('POST', `/student/tests/${testId}/answer`, {
+      question_id: questionId,
+      selected_answer_id: answerId,
+    });
+    return response.data;
+  },
+
+  async submitTest(testId: string) {
+    const response = await apiRequest('POST', `/student/tests/${testId}/submit`, {});
+    return response.data;
+  },
+
+  async getTestResult(testId: string) {
+    const response = await apiRequest('GET', `/student/tests/${testId}/result`);
+    return response.data;
   },
 };
